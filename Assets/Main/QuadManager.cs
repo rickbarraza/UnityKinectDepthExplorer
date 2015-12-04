@@ -31,7 +31,7 @@ public class QuadManager : MonoBehaviour {
     Vector3 AverageNormal = Vector3.up;
 
     Vector3[] fatMeshVertices;
-    Quaternion QuadSpaceRotation;
+    public Quaternion QuadSpaceRotation;
 
     private Transform transformLT, transformRT, transformLB, transformRB, quadCenter;
     Mesh mesh;
@@ -79,12 +79,15 @@ public class QuadManager : MonoBehaviour {
         return fat;
     }
 
+    LineRenderer LineToKinect;
+
     void SetupLineRenderers()
     {
         lrNormals = new LineRenderer[totalNormals];
         lrZoneOutline = new LineRenderer[totalOutlines];
+        LineToKinect = new LineRenderer();
 
-        int totalLines = totalNormals + totalOutlines;
+        int totalLines = totalNormals + totalOutlines + 1;
         AllLines = new GameObject[totalLines];
 
         // CREATE AN EMPTY GAMEOBJECT TO HOLD EACH LINERENDERER
@@ -126,27 +129,29 @@ public class QuadManager : MonoBehaviour {
             lrZoneOutline[i].SetPosition(0, new Vector3(0, 0, 500));
             lrZoneOutline[i].SetPosition(1, new Vector3(-80 + (i*10), 10, 400));
         }
+
+        LineToKinect = AllLines[linesIndex].AddComponent<LineRenderer>();
+        AllLines[linesIndex].name = "LineToKinect";
+        LineToKinect.material = new Material(Shader.Find("Particles/Additive"));
+        LineToKinect.SetColors(ZoneOutlineColor, ZoneOutlineColor);
+        LineToKinect.SetWidth(3.0f, 3.0f);
+        LineToKinect.SetPosition(0, new Vector3(0, 0, 0));
+        LineToKinect.SetPosition(1, new Vector3(0, 0, 100));
     }
 
     void Update () {
 
-        if ( DragCorners3D.isDirty )
+        if ( DragCorners3D.isDirty == true )
         {
-            UpdateQuadMesh();
             DragCorners3D.isDirty = false;
+            UpdateQuadMesh();
         }
        
-        if ( Input.GetKeyDown(KeyCode.V))
-        {
-            for ( int i = 0; i < mesh.vertexCount; i++ )
-            {
-                Debug.Log(i + ": " + mesh.vertices[i].ToString());
-            }
-        }
     }
 
-    void UpdateQuadMesh()
+    public void UpdateQuadMesh()
     {
+
         CalculateNormals();
 
         Vector3 quadHeightNormal = AverageNormal;
@@ -167,6 +172,36 @@ public class QuadManager : MonoBehaviour {
         mesh.RecalculateNormals();
 
         DrawZoneOutline();
+    }
+
+    public void RotationReset()
+    {
+        transformRT.position = originalRT;
+        transformRB.position = originalRB;
+        transformLT.position = originalLT;
+        transformLB.position = originalLB;
+        UpdateQuadMesh();
+    }
+
+    public void NormalizeToZone()
+    {
+        originalLB = transformLB.position;
+        originalLT = transformLT.position;
+        originalRB = transformRB.position;
+        originalRT = transformRT.position;
+
+        RenderWithNormalizedRotation();
+        UpdateQuadMesh();
+    }
+
+    Vector3 originalRT, originalRB, originalLT, originalLB;
+
+    void RenderWithNormalizedRotation()
+    {
+        transformRT.position = QuadSpaceRotation * transformRT.position;
+        transformRB.position = QuadSpaceRotation * transformRB.position;
+        transformLT.position = QuadSpaceRotation * transformLT.position;
+        transformLB.position = QuadSpaceRotation * transformLB.position;
     }
 
     void DrawZoneOutline()
@@ -240,6 +275,8 @@ public class QuadManager : MonoBehaviour {
         AverageNormal = RNormal + LNormal;
         lrNormals[0].SetPosition(0, quadCenter.position);
         lrNormals[0].SetPosition(1, quadCenter.position + AverageNormal);
+
+        LineToKinect.SetPosition(1, quadCenter.position);
 
         QuadSpaceRotation = Quaternion.FromToRotation(AverageNormal.normalized, new Vector3(0, 1, 0));
 
