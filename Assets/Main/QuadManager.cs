@@ -33,7 +33,8 @@ public class QuadManager : MonoBehaviour {
     Vector3[] fatMeshVertices;
     public Quaternion QuadSpaceRotation;
 
-    private Transform transformLT, transformRT, transformLB, transformRB, quadCenter;
+    private Transform transformLT, transformRT, transformLB, transformRB;
+    public Transform quadCenter;
     Mesh mesh;
 
     void Start () {

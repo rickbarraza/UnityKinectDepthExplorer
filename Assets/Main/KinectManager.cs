@@ -12,6 +12,7 @@ public class KinectManager : MonoBehaviour {
     MultiSourceFrameReader reader;
 
     public RawImage riDepth;
+    public RawImage riDepthModified;
 
     public CameraSpacePoint[] cameraSpacePoints;
     public int depthWidth, depthHeight;
@@ -21,12 +22,13 @@ public class KinectManager : MonoBehaviour {
     
     ushort[] depthData;
     public byte[] depthColorData;
-    byte[] depthZoneData;
+    public byte[] depthZoneData;
 
     public float minDepth;
     public float maxDepth;
 
     Texture2D textureDepthOriginal;
+    public Texture2D textureDepthModified;
 
     public Text myText;
 
@@ -45,10 +47,15 @@ public class KinectManager : MonoBehaviour {
 
             depthData = new ushort[depthFrameDesc.LengthInPixels];
             depthColorData = new byte[depthFrameDesc.LengthInPixels * 4]; // 4 BPP for RGBA
+            depthZoneData = new byte[depthFrameDesc.LengthInPixels * 4];
             cameraSpacePoints = new CameraSpacePoint[depthFrameDesc.LengthInPixels];
 
             textureDepthOriginal = new Texture2D(depthWidth, depthHeight, TextureFormat.RGBA32, false);
+            textureDepthModified = new Texture2D(depthWidth, depthHeight, TextureFormat.RGBA32, false);
+
+
             riDepth.texture = textureDepthOriginal;
+            riDepthModified.texture = textureDepthModified;
             
             if ( !sensor.IsOpen)
             {
@@ -151,7 +158,6 @@ public class KinectManager : MonoBehaviour {
         textureDepthOriginal.LoadRawTextureData(depthColorData);
         textureDepthOriginal.Apply();
 
-        myText.text = "lowest/highest index: " + lowestIndex + " / " + highestIndex;
     }
 
     void OnApplicationQuit()

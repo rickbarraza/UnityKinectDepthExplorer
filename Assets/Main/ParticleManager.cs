@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class ParticleManager : MonoBehaviour {
 
@@ -8,9 +9,6 @@ public class ParticleManager : MonoBehaviour {
 
     KinectManager kinectManager = null;
     QuadManager quadManager = null;
-
-
-    public int totalParticles;
 
     public bool ClipToZone = false;
     bool isNormalizeToZone = false;
@@ -52,12 +50,9 @@ public class ParticleManager : MonoBehaviour {
         }
 
         particles = this.gameObject.GetComponent<ParticleSystem>();
+        goodParticles = new List<ParticleSystem.Particle>();
 
-        totalParticles = (kinectManager.depthWidth / gridStep) * (kinectManager.depthHeight / gridStep); // (width / 2) * (height / 2);
-
-        cloud = new ParticleSystem.Particle[totalParticles];
-
-        InvokeRepeating("UpdateKinectMesh", 3.0f, 2.0f);
+        InvokeRepeating("UpdateKinectMesh2", 3.0f, 2.0f);
     }
     
     void CreateDepthColorLookup()
@@ -77,7 +72,7 @@ public class ParticleManager : MonoBehaviour {
     {
         isNormalizeToZone = isNormalized;
         normalizedRotation = quadManager.QuadSpaceRotation;
-        UpdateKinectMesh();
+        UpdateKinectMesh2();
 
         if ( isNormalized )
         {
@@ -160,65 +155,134 @@ public class ParticleManager : MonoBehaviour {
         return depthColorLookup[depthColorIndex];
     }
 
-    public void UpdateKinectMesh()
+    List<ParticleSystem.Particle> goodParticles;
+
+    public void UpdateKinectMesh2()
     {
+        // NO DEPTH TO CAMERA SPACE, NO RESULTS!
         if (kinectManager.cameraSpacePoints == null) return;
 
-        int index = 0;
+        goodParticles.Clear();
+        goodParticles = new List<ParticleSystem.Particle>();
+
+        Vector2 imagePosition = new Vector2(0, 0);
+
+        System.Array.Clear(kinectManager.depthZoneData, 0, kinectManager.depthZoneData.Length);
         
-        for (int y = 0; y < kinectManager.depthHeight; y += gridStep)
+        for (int y = 0; y < kinectManager.depthHeight; y++)
         {
-            for (int x = 0; x < kinectManager.depthWidth; x += gridStep)
+            for (int x = 0; x < kinectManager.depthWidth; x++)
             {
-                // MAKE SURE OUR INDEX DOESN'T EXCEED OUR PARTICLE ALLOCATION
-                if (index >= cloud.Length) break;
+                imagePosition.x = x;
+                imagePosition.y = y;
 
-                cloud[index].position = new Vector3(0, 0, 0);
-                cloud[index].color = GetDepthColor(0);
-                cloud[index].size = 1.0f;
-
-                if ( ClipToZone )
+                if (ClipToZone)
                 {
-                    // DO A BASIC BOUNDS CHECK FOR THE OTHER BOUNDING RECT FIRST
-                    if (x > lowX && x < highX && y > lowY && y < highY)
+                    if (isInZone(imagePosition))
                     {
-                        // DO BARYCENTRIC TRIANGLE COLLISION FOR QUAD CHECKING
-                        if (
-                            IsPointInTriangle(new Vector2(x, y), _lb2d, _lt2d, _rb2d) ||
-                            IsPointInTriangle(new Vector2(x, y), _rb2d, _lt2d, _rt2d)
-                            )
-                        {
-                            Vector3 pos = kinectManager.GetCameraSpacePointfromDepthImageXY(new Vector2(x, y));
-
-                            if ( isNormalizeToZone ) { pos = normalizedRotation * pos;  }
-
-                            if (!float.IsInfinity(pos.sqrMagnitude) && !float.IsNaN(pos.sqrMagnitude))
-                            {
-                                cloud[index].position = pos * 1000.0f;
-                                cloud[index].color = GetDepthColor(cloud[index].position.z);
-                                cloud[index].size = Random.Range(2.0f, 5.0f);
-                            }
-                        }
-
+                        CopyDepthImageData(imagePosition);
+                        testAddParticle(imagePosition);
                     }
                 } else
                 {
-                    Vector3 pos = kinectManager.GetCameraSpacePointfromDepthImageXY(new Vector2(x, y));
-                    if (isNormalizeToZone) { pos = normalizedRotation * pos; }
-
-                    if (!float.IsInfinity(pos.sqrMagnitude) && !float.IsNaN(pos.sqrMagnitude))
-                    {
-                        cloud[index].position = pos * 1000.0f;
-                        cloud[index].color = GetDepthColor(cloud[index].position.z);
-                        cloud[index].size = Random.Range(2.0f, 5.0f);
-                    }
+                    CopyDepthImageData(imagePosition);
+                    testAddParticle(imagePosition);
                 }
-                index++;
+
             }
         }
-        particles.SetParticles(cloud, cloud.Length);
+        
+        particles.SetParticles(goodParticles.ToArray(), goodParticles.Count);
+
+        kinectManager.textureDepthModified.LoadRawTextureData(kinectManager.depthZoneData);
+        kinectManager.textureDepthModified.Apply();
     }
 
+    
+    void CopyDepthImageData(Vector2 imagePosition)
+    {
+
+        int depthIndex = (int)(imagePosition.x + ( (423 - imagePosition.y) * kinectManager.depthWidth)) * 4;
+
+        if ( isNormalizeToZone )
+        {
+            Vector3 pos3D = kinectManager.GetCameraSpacePointfromDepthImageXY(imagePosition) * 1000.0f;
+            Vector3 normalizedPos = normalizedRotation * pos3D;
+
+            if ( ( pos3D.z > kinectManager.minDepth && pos3D.z < kinectManager.maxDepth) 
+                && (!float.IsInfinity(normalizedPos.sqrMagnitude) && !float.IsNaN(normalizedPos.sqrMagnitude))
+                )
+            {
+                float yDelta = (quadManager.quadCenter.position.y - normalizedPos.y)/ -100.0f;
+                yDelta = Mathf.Clamp(yDelta, 0.0f, 1.0f);
+                byte yColor = (byte)(255.0f * yDelta);
+                kinectManager.depthZoneData[depthIndex] = yColor;
+                kinectManager.depthZoneData[depthIndex + 1] = yColor;
+                kinectManager.depthZoneData[depthIndex + 2] = yColor;
+                kinectManager.depthZoneData[depthIndex + 3] = 255;
+            }
+            else
+            {
+                // SOMETHING WRONG, CLEAR THE PIXEL
+                kinectManager.depthZoneData[depthIndex] = 0;
+                kinectManager.depthZoneData[depthIndex + 1] = 0;
+                kinectManager.depthZoneData[depthIndex + 2] = 0;
+                kinectManager.depthZoneData[depthIndex + 3] = 0;
+            }
+            
+        }
+        else
+        {
+            kinectManager.depthZoneData[depthIndex] = kinectManager.depthColorData[depthIndex];
+            kinectManager.depthZoneData[depthIndex + 1] = kinectManager.depthColorData[depthIndex + 1];
+            kinectManager.depthZoneData[depthIndex + 2] = kinectManager.depthColorData[depthIndex + 2];
+            kinectManager.depthZoneData[depthIndex + 3] = 255;
+        }
+    }
+
+    void testAddParticle(Vector2 testPosition)
+    {
+        if ( testPosition.x % gridStep == 0 && testPosition.y % gridStep == 0 )
+        {
+            Vector3 pos3D = kinectManager.GetCameraSpacePointfromDepthImageXY(testPosition) * 1000.0f;
+
+            if ( !float.IsInfinity(pos3D.sqrMagnitude) && !float.IsNaN(pos3D.sqrMagnitude))
+            {
+                ParticleSystem.Particle newParticle = new ParticleSystem.Particle();
+
+                if (isNormalizeToZone)
+                {
+                    pos3D = normalizedRotation * pos3D;
+
+                    float yDelta = (quadManager.quadCenter.position.y - pos3D.y) / -100.0f;
+                    yDelta = Mathf.Clamp(yDelta, 0.0f, 1.0f);
+                    newParticle.color = new Color(yDelta, yDelta, yDelta, 1.0f);
+                }
+                else
+                {
+                    newParticle.color = GetDepthColor(newParticle.position.z);
+                }
+
+                newParticle.position = pos3D;
+                newParticle.size = Random.Range(2.0f, 5.0f);
+         
+                goodParticles.Add(newParticle);
+            }
+        }
+    }
+
+    bool isInZone(Vector2 testPosition)
+    {
+        if ( IsPointInTriangle(testPosition, _lb2d, _lt2d, _rb2d) ||
+                IsPointInTriangle(testPosition, _rb2d, _lt2d, _rt2d) )
+        {
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+    
     public bool IsPointInTriangle(Vector2 testPoint, Vector2 PointA, Vector2 PointB, Vector2 PointC)
     {
         Vector2 v0 = PointC - PointA;

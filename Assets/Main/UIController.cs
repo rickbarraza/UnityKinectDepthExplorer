@@ -17,9 +17,6 @@ public class UIController : MonoBehaviour {
     Toggle toggleClipToZone;
     Toggle toggleNormalizeToZone;
 
-    RawImage riDepthOriginal;
-    RawImage riDepthModified;
-
     DragCorners2D dragCorners2D;
 
     Text txtOut;
@@ -34,12 +31,6 @@ public class UIController : MonoBehaviour {
 
         go = GameObject.Find("sliderDepthMax");
         depthZMaxSlider = go.GetComponent<Slider>();
-
-        go = GameObject.Find("riDepthOriginal");
-        riDepthOriginal = go.GetComponent<RawImage>();
-
-        go = GameObject.Find("riDepthModified");
-        riDepthModified = go.GetComponent<RawImage>();
 
         go = GameObject.Find("sliderDepthMinLabel");
         depthMinText = go.GetComponent<Text>();
@@ -73,14 +64,13 @@ public class UIController : MonoBehaviour {
         depthZMinSlider.value = 500;
         depthZMaxSlider.value = 1800;
 
-        // SETUP KINECT MANAGER TO UI MAPPING
         slidersMinMaxChanged();
 	}
 	
     public void toggleClipToZoneChanged()
     {
         particleManager.ClipToZone = toggleClipToZone.isOn;
-        particleManager.UpdateKinectMesh();
+        particleManager.UpdateKinectMesh2();
     }
 
     public void toggleNormalizeToZoneChanged()
