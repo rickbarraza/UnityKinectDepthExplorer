@@ -1,5 +1,5 @@
 # UnityKinectDepthExplorer
-####**SPAGHETTI CODE ALERT**####
+####**:spaghetti: SPAGHETTI CODE ALERT :spaghetti:**####
 
 A working sample / research repository of using Unity to explore Kinect Depth data and recontextualizing the Color to Camera Space using a user defined, spatial quad. The primary use case is to define a table top "zone of interest" and create an adjusted Depth Image that shades the pixels from the quad surface for subsequent vision processing.
 
